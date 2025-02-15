@@ -1,147 +1,179 @@
 """
-producer_case.py
+csv_producer_case.py
 
-Stream JSON data to a file and - if available - a Kafka topic.
+Stream numeric data to a Kafka topic.
 
-Example JSON message
-{
-    "message": "I just shared a meme! It was amazing.",
-    "author": "Charlie",
-    "timestamp": "2025-01-29 14:35:20",
-    "category": "humor",
-    "sentiment": 0.87,
-    "keyword_mentioned": "meme",
-    "message_length": 42
-}
-
-Environment variables are in utils/utils_config module. 
+It is common to transfer csv data as JSON so 
+each field is clearly labeled. 
 """
 
 #####################################
 # Import Modules
 #####################################
 
-# import from standard library
-import json
+# Import packages from Python Standard Library
 import os
-import pathlib
-import random
 import sys
-import time
-from datetime import datetime
-import kagglehub
-import shutil
+import time  # control message intervals
+import pathlib  # work with file paths
+import csv  # handle CSV data
+import json  # work with JSON data
+from datetime import datetime  # work with timestamps
 
-# import external modules
-from kafka import KafkaProducer
+# Import external packages
+from dotenv import load_dotenv
 
-# import from local modules
-import utils.utils_config as config
-from utils.utils_producer import verify_services, create_kafka_topic
+# Import functions from local modules
+from utils.utils_producer import (
+    verify_services,
+    create_kafka_producer,
+    create_kafka_topic,
+)
 from utils.utils_logger import logger
 
+#####################################
+# Load Environment Variables
+#####################################
+
+load_dotenv()
 
 #####################################
-# Define Message Generator
+# Getter Functions for .env Variables
 #####################################
 
 
-def generate_messages():
+def get_kafka_topic() -> str:
+    """Fetch Kafka topic from environment or use default."""
+    topic = os.getenv("SMOKER_TOPIC", "unknown_topic")
+    logger.info(f"Kafka topic: {topic}")
+    return topic
+
+
+def get_message_interval() -> int:
+    """Fetch message interval from environment or use default."""
+    interval = int(os.getenv("SMOKER_INTERVAL_SECONDS", 1))
+    logger.info(f"Message interval: {interval} seconds")
+    return interval
+
+
+#####################################
+# Set up Paths
+#####################################
+
+# The parent directory of this file is its folder.
+# Go up one more parent level to get the project root.
+PROJECT_ROOT = pathlib.Path(__file__).parent.parent
+logger.info(f"Project root: {PROJECT_ROOT}")
+
+# Set directory where data is stored
+DATA_FOLDER = PROJECT_ROOT.joinpath("data")
+logger.info(f"Data folder: {DATA_FOLDER}")
+
+# Set the name of the data file
+DATA_FILE = DATA_FOLDER.joinpath("smoker_temps.csv")
+logger.info(f"Data file: {DATA_FILE}")
+
+#####################################
+# Message Generator
+#####################################
+
+
+def generate_messages(file_path: pathlib.Path):
     """
-    Generate a stream of JSON messages.
+    Read from a csv file and yield records one by one, until the file is read.
+
+    Args:
+        file_path (pathlib.Path): Path to the CSV file.
+
+    Yields:
+        str: CSV row formatted as a string.
     """
-    
-    # Download latest version
-    source_path = kagglehub.dataset_download("bhanupratapbiswas/weather-data")
-    
-    # Moving dataset into current directory
-    logger.info(f'dataset to {source_path}')
-
-
-#####################################
-# Define Main Function
-#####################################
-
-
-def main() -> None:
-
-    logger.info("Starting Producer to run continuously.")
-    logger.info("Things can fail or get interrupted, so use a try block.")
-    logger.info("Moved .env variables into a utils config module.")
-
-    logger.info("STEP 1. Read required environment variables.")
-
     try:
-        interval_secs: int = config.get_message_interval_seconds_as_int()
-        topic: str = config.get_kafka_topic()
-        kafka_server: str = config.get_kafka_broker_address()
-        source_data_path = pathlib.Path = config.get_source_data_path()
-        data_dir = pathlib.Path = config.get_base_data_path()
-        live_data_path: pathlib.Path = config.get_live_data_path()
+        logger.info(f"Opening data file in read mode: {DATA_FILE}")
+        with open(DATA_FILE, "r") as csv_file:
+            logger.info(f"Reading data from file: {DATA_FILE}")
+
+            csv_reader = csv.DictReader(csv_file)
+            for row in csv_reader:
+                # Ensure required fields are present
+                if "temperature" not in row:
+                    logger.error(f"Missing 'temperature' column in row: {row}")
+                    continue
+
+                # Generate a timestamp and prepare the message
+                current_timestamp = datetime.utcnow().isoformat()
+                message = {
+                    "timestamp": current_timestamp,
+                    "temperature": float(row["temperature"]),
+                }
+                logger.debug(f"Generated message: {message}")
+                yield message
+    except FileNotFoundError:
+        logger.error(f"File not found: {file_path}. Exiting.")
+        sys.exit(1)
     except Exception as e:
-        logger.error(f"ERROR: Failed to read environment variables: {e}")
+        logger.error(f"Unexpected error in message generation: {e}")
+        sys.exit(3)
+
+
+#####################################
+# Define main function for this module.
+#####################################
+
+
+def main():
+    """
+    Main entry point for the producer.
+
+    - Reads the Kafka topic name from an environment variable.
+    - Creates a Kafka producer using the `create_kafka_producer` utility.
+    - Streams messages to the Kafka topic.
+    """
+
+    logger.info("START producer.")
+    verify_services()
+
+    # fetch .env content
+    topic = get_kafka_topic()
+    interval_secs = get_message_interval()
+
+    # Verify the data file exists
+    if not DATA_FILE.exists():
+        logger.error(f"Data file not found: {DATA_FILE}. Exiting.")
         sys.exit(1)
 
-    logger.info("STEP 2. Delete the live data file if exists to start fresh.")
+    # Create the Kafka producer
+    producer = create_kafka_producer(
+        value_serializer=lambda x: json.dumps(x).encode("utf-8")
+    )
+    if not producer:
+        logger.error("Failed to create Kafka producer. Exiting...")
+        sys.exit(3)
 
+    # Create topic if it doesn't exist
     try:
-        if live_data_path.exists():
-            live_data_path.unlink()
-            logger.info("Deleted existing live data file.")
-
-        logger.info("STEP 3. Build the path folders to the live data file if needed.")
-        os.makedirs(live_data_path.parent, exist_ok=True)
+        create_kafka_topic(topic)
+        logger.info(f"Kafka topic '{topic}' is ready.")
     except Exception as e:
-        logger.error(f"ERROR: Failed to delete live data file: {e}")
-        sys.exit(2)
+        logger.error(f"Failed to create or verify topic '{topic}': {e}")
+        sys.exit(1)
 
-    logger.info("STEP 4. Try to create a Kafka producer and topic.")
-    producer = None
-
+    # Generate and send messages
+    logger.info(f"Starting message production to topic '{topic}'...")
     try:
-        verify_services()
-        producer = KafkaProducer(
-            bootstrap_servers=kafka_server,
-            value_serializer=lambda x: json.dumps(x).encode("utf-8"),
-        )
-        logger.info(f"Kafka producer connected to {kafka_server}")
-    except Exception as e:
-        logger.warning(f"WARNING: Kafka connection failed: {e}")
-        producer = None
-
-    if producer:
-        try:
-            create_kafka_topic(topic)
-            logger.info(f"Kafka topic '{topic}' is ready.")
-        except Exception as e:
-            logger.warning(f"WARNING: Failed to create or verify topic '{topic}': {e}")
-            producer = None
-
-    logger.info("STEP 5. Generate messages continuously.")
-    try:
-        for message in generate_messages():
-            logger.info(message)
-
-            with live_data_path.open("a") as f:
-                f.write(json.dumps(message) + "\n")
-                logger.info(f"STEP 4a Wrote message to file: {message}")
-
-            # Send to Kafka if available
-            if producer:
-                producer.send(topic, value=message)
-                logger.info(f"STEP 4b Sent message to Kafka topic '{topic}': {message}")
-
+        for csv_message in generate_messages(DATA_FILE):
+            producer.send(topic, value=csv_message)
+            logger.info(f"Sent message to topic '{topic}': {csv_message}")
             time.sleep(interval_secs)
-
     except KeyboardInterrupt:
-        logger.warning("WARNING: Producer interrupted by user.")
+        logger.warning("Producer interrupted by user.")
     except Exception as e:
-        logger.error(f"ERROR: Unexpected error: {e}")
+        logger.error(f"Error during message production: {e}")
     finally:
-        if producer:
-            producer.close()
-            logger.info("Kafka producer closed.")
-        logger.info("TRY/FINALLY: Producer shutting down.")
+        producer.close()
+        logger.info("Kafka producer closed.")
+
+    logger.info("END producer.")
 
 
 #####################################
