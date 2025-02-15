@@ -46,14 +46,14 @@ load_dotenv()
 
 def get_kafka_topic() -> str:
     """Fetch Kafka topic from environment or use default."""
-    topic = os.getenv("SMOKER_TOPIC", "unknown_topic")
+    topic = os.getenv("WEATHER_TOPIC", "unknown_topic")
     logger.info(f"Kafka topic: {topic}")
     return topic
 
 
 def get_message_interval() -> int:
     """Fetch message interval from environment or use default."""
-    interval = int(os.getenv("SMOKER_INTERVAL_SECONDS", 1))
+    interval = int(os.getenv("WEATHER_INTERVAL_SECONDS", 1))
     logger.info(f"Message interval: {interval} seconds")
     return interval
 
@@ -65,9 +65,6 @@ def get_message_interval() -> int:
 # The parent directory of this file is its folder.
 # Go up one more parent level to get the project root.
 
-SOURCE_DATA = path = kagglehub.dataset_download("bhanupratapbiswas/weather-data")
-logger.info(f'Path of source data: {SOURCE_DATA}')
-
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent
 logger.info(f"Project root: {PROJECT_ROOT}")
 
@@ -76,7 +73,7 @@ DATA_FOLDER = PROJECT_ROOT.joinpath("data")
 logger.info(f"Data folder: {DATA_FOLDER}")
 
 # Set the name of the data file
-DATA_FILE = DATA_FOLDER.joinpath("Weather Data.csv")
+DATA_FILE = DATA_FOLDER.joinpath('Weather Data.csv')
 logger.info(f"Data file: {DATA_FILE}")
 
 #####################################
@@ -143,16 +140,9 @@ def main():
     topic = get_kafka_topic()
     interval_secs = get_message_interval()
 
-    # Verify the destination director exists
-    if not os.path.exists(DATA_FOLDER):
-        os.makedirs(DATA_FOLDER)
-
-    # Verify the data file exists
+    # Copy the data file to directory
     if not DATA_FILE.exists():
-        shutil.move(SOURCE_DATA, DATA_FOLDER)
-        logger.info(f'Data file move to directory: {DATA_FILE}')
-    else:
-        logger.error(f"Data file not found: {DATA_FILE}. Exiting.")
+        logger.info(f'Data file no found: {DATA_FILE}')
         sys.exit(1)
 
     # Create the Kafka producer
