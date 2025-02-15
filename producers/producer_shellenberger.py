@@ -19,9 +19,11 @@ import pathlib  # work with file paths
 import csv  # handle CSV data
 import json  # work with JSON data
 from datetime import datetime  # work with timestamps
+import kagglehub
 
 # Import external packages
 from dotenv import load_dotenv
+import shutil
 
 # Import functions from local modules
 from utils.utils_producer import (
@@ -62,6 +64,10 @@ def get_message_interval() -> int:
 
 # The parent directory of this file is its folder.
 # Go up one more parent level to get the project root.
+
+SOURCE_DATA = path = kagglehub.dataset_download("bhanupratapbiswas/weather-data")
+logger.info(f'Path of source data: {SOURCE_DATA}')
+
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent
 logger.info(f"Project root: {PROJECT_ROOT}")
 
@@ -70,7 +76,7 @@ DATA_FOLDER = PROJECT_ROOT.joinpath("data")
 logger.info(f"Data folder: {DATA_FOLDER}")
 
 # Set the name of the data file
-DATA_FILE = DATA_FOLDER.joinpath("smoker_temps.csv")
+DATA_FILE = DATA_FOLDER.joinpath("Weather Data.csv")
 logger.info(f"Data file: {DATA_FILE}")
 
 #####################################
@@ -137,8 +143,15 @@ def main():
     topic = get_kafka_topic()
     interval_secs = get_message_interval()
 
+    # Verify the destination director exists
+    if not os.path.exists(DATA_FOLDER):
+        os.makedirs(DATA_FOLDER)
+
     # Verify the data file exists
     if not DATA_FILE.exists():
+        shutil.move(SOURCE_DATA, DATA_FOLDER)
+        logger.info(f'Data file move to directory: {DATA_FILE}')
+    else:
         logger.error(f"Data file not found: {DATA_FILE}. Exiting.")
         sys.exit(1)
 
