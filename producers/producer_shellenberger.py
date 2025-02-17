@@ -98,16 +98,17 @@ def generate_messages(file_path: pathlib.Path):
 
             csv_reader = csv.DictReader(csv_file)
             for row in csv_reader:
-                # Ensure required fields are present
-                if "temperature" not in row:
-                    logger.error(f"Missing 'temperature' column in row: {row}")
-                    continue
 
                 # Generate a timestamp and prepare the message
-                current_timestamp = datetime.utcnow().isoformat()
                 message = {
-                    "timestamp": current_timestamp,
-                    "temperature": float(row["temperature"]),
+                    "datetime": row['Date/Time'],
+                    "temperature": float(row["Temp_C"]),
+                    "dewpoint": float(row["Dew Point Temp_C"]),
+                    'rel_humidity': int(row['Rel Hum_%']),
+                    'wind_speed': int(row['Wind Speed_km/h']),
+                    'visibility': float(row['Visibility_km']),
+                    'pressure': float(row['Press_kPa']),
+                    'weather': str(row['Weather'])
                 }
                 logger.debug(f"Generated message: {message}")
                 yield message
