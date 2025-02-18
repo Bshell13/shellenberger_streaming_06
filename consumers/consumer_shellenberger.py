@@ -1,10 +1,19 @@
 """
-csv_consumer_case.py
+consumer_shellenberger.py
 
 Consume json messages from a Kafka topic and visualize author counts in real-time.
 
 Example Kafka message format:
-{"timestamp": "2025-01-11T18:15:00Z", "temperature": 225.0}
+{
+    'datetime': 1/1/2012 0:00,
+    'temperature_C': -1.8,
+    'dewpoint_C': -3.9,
+    'rel_humidity': 86,
+    'wind_speed_km/h': 4,
+    'visibility_km': 8,
+    'pressure_kPa': 101.24,
+    'weather': Fog
+}
 
 """
 
@@ -15,11 +24,9 @@ Example Kafka message format:
 # Import packages from Python Standard Library
 import os
 import json  # handle JSON parsing
-
-# Use a deque ("deck") - a double-ended queue data structure
-# A deque is a good way to monitor a certain number of "most recent" messages
-# A deque is a great data structure for time windows (e.g. the last 5 messages)
-from collections import deque
+import sqlite3 # used for data storage
+import pandas as pd
+import seaborn as sns
 
 # Import external packages
 from dotenv import load_dotenv
@@ -59,19 +66,11 @@ def get_kafka_consumer_group_id() -> str:
     return group_id
 
 
-def get_rolling_window_size() -> int:
-    """Fetch rolling window size from environment or use default."""
-    window_size = int(os.getenv("SMOKER_ROLLING_WINDOW_SIZE", 5))
-    logger.info(f"Rolling window size: {window_size}")
-    return window_size
-
-
 #####################################
 # Set up data structures (empty lists)
 #####################################
 
-timestamps = []  # To store timestamps for the x-axis
-temperatures = []  # To store temperature readings for the y-axis
+custom_df = pd.DataFrame(columns=['pressure_kPa', 'windspeed_km/h', 'weather'])
 
 #####################################
 # Set up live visuals
@@ -81,7 +80,8 @@ temperatures = []  # To store temperature readings for the y-axis
 # two objects at once:
 # - a figure (which can have many axis)
 # - an axis (what they call a chart in Matplotlib)
-fig, ax = plt.subplots()
+fig, ax1 = plt.subplots()
+ax2 = ax1.twinx()
 
 # Use the ion() method (stands for "interactive on")
 # to turn on interactive mode for live updates
@@ -97,68 +97,31 @@ plt.ion()
 def update_chart(rolling_window, window_size):
     """
     Update temperature vs. time chart.
-    Args:
-        rolling_window (deque): Rolling window of temperature readings.
-        window_size (int): Size of the rolling window.
     """
     # Clear the previous chart
-    ax.clear()  
+    ax1.clear()
+    ax2.clear()
+    
+    # Calculates the average windspeed and pressure for each weather type.
+    avg_windpeed = custom_df.groupby(['weather'])['windspeed_km/h'].mean().reset_index()
+    avg_pressure = custom_df.groupby(['weather'])['pressure_kPa'].mean().reset_index()
 
-    # Create a line chart using the plot() method
-    # Use the timestamps for the x-axis and temperatures for the y-axis
-    # Use the label parameter to add a legend entry
-    # Use the color parameter to set the line color
-    ax.plot(timestamps, temperatures, label="Temperature", color="blue")
+    # Create a bar chart using the plot() method
+    # Use the weather for the x-axis and average pressure and average windspeed for the y-axis
+    # There will be two y-axis tick marks for the different labels
+    # This is for the average pressure plot
+    sns.barplot(data = avg_pressure, x='weather', y='pressure_kPa', color="blue")
+    ax1.set_ylabel('Average Pressure (kPa)', color='blue')
+    ax1.tick_params(axis='y', labelcolor='blue')
+    
+    # This is for the average windspeed plot
+    sns.barplot(data = avg_windpeed, x='weather', y='windspeed_km/h', color="green")
+    ax2.set_ylabel('Average Windspeed (km/h)', color='green')
+    ax2.tick_params(axis='y', labelcolor='green')
 
     # Use the built-in axes methods to set the labels and title
-    ax.set_xlabel("Time")
-    ax.set_ylabel("Temperature (°F)")
-    ax.set_title("Smart Smoker: Temperature vs. Time by Brandon Shellenberger")
-
-    # Highlight stall points if conditions are met such that
-    #    The rolling window is full and a stall is detected
-    if len(rolling_window) >= window_size:
-        # Mark the stall point on the chart
-
-        # An index of -1 gets the last element in a list
-        stall_time = timestamps[-1]
-        stall_temp = temperatures[-1]
-
-        # Use the scatter() method to plot a point
-        # Pass in the x value as a list, the y value as a list (using [])
-        # and set the marker color and label
-        # zorder is used to ensure the point is plotted on TOP of the line chart
-        # zorder of 5 is higher than the default zorder of 2
-        ax.scatter(
-            [stall_time], [stall_temp], color="red", label="Stall Detected", zorder=5
-        )
-
-        # Use the annotate() method to add a text label
-        # To learn more, look up the matplotlib axes.annotate documentation
-        # https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.annotate.html
-        # textcoords="offset points" means the label is placed relative to the point
-        # xytext=(10, -10) means the label is placed 10 points to the right and 10 points down from the point 
-        # Typically, the first number is x (horizontal) and the second is y (vertical)
-        # x: Positive moves to the right, negative to the left
-        # y: Positive moves up, negative moves down
-        # ha stands for horizontal alignment
-        # We set color to red, a common convention for warnings
-        ax.annotate(
-            "Stall Detected",
-            (stall_time, stall_temp),
-            textcoords="offset points",
-            xytext=(10, -10),
-            ha="center",
-            color="red",
-        )
-
-    # Regardless of whether a stall is detected, we want to show the legend
-
-    # Use the legend() method to display the legend
-    ax.legend()
-
-    # Use the autofmt_xdate() method to automatically format the x-axis labels as dates
-    fig.autofmt_xdate()
+    ax1.set_xlabel("Type of Weather")
+    ax1.set_title("Pressure and Windspeed for different weather types")
 
     # Use the tight_layout() method to automatically adjust the padding
     plt.tight_layout()
@@ -175,14 +138,12 @@ def update_chart(rolling_window, window_size):
 # #####################################
 
 
-def process_message(message: str, rolling_window: deque, window_size: int) -> None:
+def process_message(message: str) -> None:
     """
     Process a JSON-transferred CSV message and check for stalls.
 
     Args:
         message (str): JSON message received from Kafka.
-        rolling_window (deque): Rolling window of temperature readings.
-        window_size (int): Size of the rolling window.
     """
     try:
         # Log the raw message for debugging
@@ -190,8 +151,8 @@ def process_message(message: str, rolling_window: deque, window_size: int) -> No
 
         # Parse the JSON string into a Python dictionary
         data: dict = json.loads(message)
-        wind_speed = data.get("wind_speed")
-        pressure = data.get("pressure")
+        wind_speed = data.get("wind_speed_km/h")
+        pressure = data.get("pressure_kPa")
         weather = data.get('weather')
         logger.info(f"Processed JSON message: {data}")
 
@@ -200,15 +161,11 @@ def process_message(message: str, rolling_window: deque, window_size: int) -> No
             logger.error(f"Invalid message format: {message}")
             return
 
-        # Append the temperature reading to the rolling window
-        rolling_window.append(temperature)
-
         # Append the timestamp and temperature to the chart data
-        timestamps.append(timestamp)
-        temperatures.append(temperature)
+        custom_df.loc[len(custom_df)] = ['pressure_kPa', 'windspeed_km/h', 'weather']
 
         # Update chart after processing this message
-        update_chart(rolling_window=rolling_window, window_size=window_size)
+        update_chart()
 
     except json.JSONDecodeError as e:
         logger.error(f"JSON decoding error for message '{message}': {e}")
@@ -238,10 +195,7 @@ def main() -> None:
     # fetch .env content
     topic = get_kafka_topic()
     group_id = get_kafka_consumer_group_id()
-    window_size = get_rolling_window_size()
     logger.info(f"Consumer: Topic '{topic}' and group '{group_id}'...")
-    logger.info(f"Rolling window size: {window_size}")
-    rolling_window = deque(maxlen=window_size)
 
     # Create the Kafka consumer using the helpful utility function.
     consumer = create_kafka_consumer(topic, group_id)
@@ -252,7 +206,7 @@ def main() -> None:
         for message in consumer:
             message_str = message.value
             logger.debug(f"Received message at offset {message.offset}: {message_str}")
-            process_message(message_str, rolling_window, window_size)
+            process_message(message_str)
     except KeyboardInterrupt:
         logger.warning("Consumer interrupted by user.")
     except Exception as e:

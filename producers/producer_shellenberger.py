@@ -1,5 +1,5 @@
 """
-csv_producer_case.py
+producer_shellenberger.py
 
 Stream numeric data to a Kafka topic.
 
@@ -101,12 +101,12 @@ def generate_messages(file_path: pathlib.Path):
                 # Generate a timestamp and prepare the message
                 message = {
                     "datetime": row['Date/Time'],
-                    "temperature": float(row["Temp_C"]),
-                    "dewpoint": float(row["Dew Point Temp_C"]),
+                    "temperature_C": float(row["Temp_C"]),
+                    "dewpoint_C": float(row["Dew Point Temp_C"]),
                     'rel_humidity': int(row['Rel Hum_%']),
-                    'wind_speed': int(row['Wind Speed_km/h']),
-                    'visibility': float(row['Visibility_km']),
-                    'pressure': float(row['Press_kPa']),
+                    'wind_speed_km/h': int(row['Wind Speed_km/h']),
+                    'visibility_km': float(row['Visibility_km']),
+                    'pressure_kPa': float(row['Press_kPa']),
                     'weather': str(row['Weather'])
                 }
                 logger.debug(f"Generated message: {message}")

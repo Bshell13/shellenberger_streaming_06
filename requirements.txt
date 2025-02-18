@@ -82,8 +82,8 @@ pip
 setuptools
 wheel
 
-# Kaggle to extract from API
-kagglehub
+# Pandas for storing relavent data.
+pandas
 
 # Easy logging for monitoring code execution
 loguru
