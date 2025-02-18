@@ -85,6 +85,9 @@ wheel
 # Pandas for storing relavent data.
 pandas
 
+# Seaborn helps with graphing
+seaborn
+
 # Easy logging for monitoring code execution
 loguru
 

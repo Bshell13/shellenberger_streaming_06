@@ -54,14 +54,14 @@ load_dotenv()
 
 def get_kafka_topic() -> str:
     """Fetch Kafka topic from environment or use default."""
-    topic = os.getenv("SMOKER_TOPIC", "unknown_topic")
+    topic = os.getenv("WEATHER_TOPIC", "unknown_topic")
     logger.info(f"Kafka topic: {topic}")
     return topic
 
 
 def get_kafka_consumer_group_id() -> str:
     """Fetch Kafka consumer group id from environment or use default."""
-    group_id: str = os.getenv("SMOKER_CONSUMER_GROUP_ID", "default_group")
+    group_id: str = os.getenv("WEATHER_CONSUMER_GROUP_ID", "default_group")
     logger.info(f"Kafka consumer group id: {group_id}")
     return group_id
 
@@ -94,7 +94,7 @@ plt.ion()
 #####################################
 
 
-def update_chart(rolling_window, window_size):
+def update_chart():
     """
     Update temperature vs. time chart.
     """
@@ -189,8 +189,7 @@ def main() -> None:
     logger.info("START consumer.")
 
     # Clear previous run's data
-    timestamps.clear()
-    temperatures.clear()
+    custom_df.drop(custom_df.index, inplace=True)
 
     # fetch .env content
     topic = get_kafka_topic()

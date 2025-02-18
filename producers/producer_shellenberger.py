@@ -52,7 +52,7 @@ def get_kafka_topic() -> str:
 
 def get_message_interval() -> int:
     """Fetch message interval from environment or use default."""
-    interval = int(os.getenv("WEATHER_INTERVAL_SECONDS", 1))
+    interval = int(os.getenv("WEATHER_INTERVAL_SECONDS", 2))
     logger.info(f"Message interval: {interval} seconds")
     return interval
 
