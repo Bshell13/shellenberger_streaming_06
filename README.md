@@ -1,5 +1,5 @@
 # shellenberger_streaming_06
-This project will use Kafka to stream data about weather updates every hour for an entire year. It will update every 2 seconds with visualizations of average pressure and average windspeed categorized by the type of weather presented.
+This project will use Kafka to stream data about weather updates every hour for an entire year. The consumer will retrieve the message (data) it will locate the extract the pressure, windspeed, and weather type. The consumer will then find the average of the pressure and windspeed for each weather type and input the values into a DataFrame. In order to visualize the data using Seaborn, the DataFrame needs to be 'melted' from wide format to long format. The final part is the visualization using a barchart that will display the weather types on the x-axis with each type having two bars. Picture examples will be shown at the end of the file.
 
 ## Task 1. Setup Tools
 Here are the things you need to install/download before running the project:
@@ -83,3 +83,7 @@ Mac/Linux:
 source .venv/bin/activate
 python3 -m consumers.consumer_shellenberger
 ```
+
+## Example Chart
+
+![Basic JSON (file-exchange)](example_charts/example_chart.png)
