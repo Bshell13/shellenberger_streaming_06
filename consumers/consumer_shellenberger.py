@@ -95,9 +95,7 @@ plt.ion()
 
 
 def update_chart():
-    """
-    Update temperature vs. time chart.
-    """
+    """Update temperature vs. time chart."""
     # Clear the previous chart
     ax1.clear()
     ax2.clear()
@@ -140,7 +138,7 @@ def update_chart():
 
 def process_message(message: str) -> None:
     """
-    Process a JSON-transferred CSV message and check for stalls.
+    Process a JSON-transferred CSV message.
 
     Args:
         message (str): JSON message received from Kafka.
@@ -162,8 +160,8 @@ def process_message(message: str) -> None:
             return
 
         # Append the timestamp and temperature to the chart data
-        custom_df.loc[len(custom_df)] = ['pressure_kPa', 'windspeed_km/h', 'weather']
-
+        custom_df.loc[len(custom_df)] = [pressure, wind_speed, weather]
+        
         # Update chart after processing this message
         update_chart()
 
@@ -201,6 +199,7 @@ def main() -> None:
 
     # Poll and process messages
     logger.info(f"Polling messages from topic '{topic}'...")
+    logger.info(consumer)
     try:
         for message in consumer:
             message_str = message.value
