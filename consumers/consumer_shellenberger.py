@@ -80,8 +80,7 @@ custom_df = pd.DataFrame(columns=['pressure_kPa', 'windspeed_km/h', 'weather'])
 # two objects at once:
 # - a figure (which can have many axis)
 # - an axis (what they call a chart in Matplotlib)
-fig, ax1 = plt.subplots()
-ax2 = ax1.twinx()
+fig, ax = plt.subplots()
 
 # Use the ion() method (stands for "interactive on")
 # to turn on interactive mode for live updates
@@ -97,29 +96,24 @@ plt.ion()
 def update_chart():
     """Update temperature vs. time chart."""
     # Clear the previous chart
-    ax1.clear()
-    ax2.clear()
+    ax.clear()
     
     # Calculates the average windspeed and pressure for each weather type.
-    avg_windpeed = custom_df.groupby(['weather'])['windspeed_km/h'].mean().reset_index()
-    avg_pressure = custom_df.groupby(['weather'])['pressure_kPa'].mean().reset_index()
-
-    # Create a bar chart using the plot() method
-    # Use the weather for the x-axis and average pressure and average windspeed for the y-axis
-    # There will be two y-axis tick marks for the different labels
-    # This is for the average pressure plot
-    sns.barplot(data = avg_pressure, x='weather', y='pressure_kPa', color="blue")
-    ax1.set_ylabel('Average Pressure (kPa)', color='blue')
-    ax1.tick_params(axis='y', labelcolor='blue')
+    # Uses the pandas agg function to find the averages of the grouped weather types.
+    agg_df = custom_df.groupby(['weather']).agg(
+        avg_pressure_kPa=('pressure_kPa','mean'),
+        avg_windspeed_km_h=('windspeed_km/h','mean')
+        ).reset_index()
     
-    # This is for the average windspeed plot
-    sns.barplot(data = avg_windpeed, x='weather', y='windspeed_km/h', color="green")
-    ax2.set_ylabel('Average Windspeed (km/h)', color='green')
-    ax2.tick_params(axis='y', labelcolor='green')
+    # the pandas melt function change the data from wide format to a long format.
+    # This makes it easier for seaborn to graph the two values.
+    tidy_df = agg_df.melt(id_vars='weather', value_name='average_value', var_name='average_type')
 
-    # Use the built-in axes methods to set the labels and title
-    ax1.set_xlabel("Type of Weather")
-    ax1.set_title("Pressure and Windspeed for different weather types")
+    sns.barplot(data = tidy_df, x='weather', y='average_value', hue='average_type')
+    ax.set_xlabel("Type of Weather")
+    ax.set_ylabel('Values')
+    ax.set_title("Pressure and Windspeed for different Weather Types")
+    plt.xticks(rotation=75)
 
     # Use the tight_layout() method to automatically adjust the padding
     plt.tight_layout()
@@ -159,7 +153,7 @@ def process_message(message: str) -> None:
             logger.error(f"Invalid message format: {message}")
             return
 
-        # Append the timestamp and temperature to the chart data
+        # Append the pressure, wind speed and weather type
         custom_df.loc[len(custom_df)] = [pressure, wind_speed, weather]
         
         # Update chart after processing this message
@@ -199,7 +193,6 @@ def main() -> None:
 
     # Poll and process messages
     logger.info(f"Polling messages from topic '{topic}'...")
-    logger.info(consumer)
     try:
         for message in consumer:
             message_str = message.value
