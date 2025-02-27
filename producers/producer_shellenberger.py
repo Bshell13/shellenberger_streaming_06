@@ -18,7 +18,6 @@ import time  # control message intervals
 import pathlib  # work with file paths
 import csv  # handle CSV data
 import json  # work with JSON data
-import kagglehub
 
 # Import external packages
 from dotenv import load_dotenv

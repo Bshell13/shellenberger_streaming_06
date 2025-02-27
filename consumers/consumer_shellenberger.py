@@ -40,6 +40,7 @@ import matplotlib.pyplot as plt
 # Import functions from local modules
 from utils.utils_consumer import create_kafka_consumer
 from utils.utils_logger import logger
+from consumers.db_postgresql import init_db, insert_message
 
 #####################################
 # Load Environment Variables
@@ -166,6 +167,27 @@ def process_message(message: str) -> None:
 
 
 #####################################
+# Function to store messages in postgres
+#####################################
+
+def store_message(message: str) -> None:
+    '''
+    Store messages in postgresql for future use.
+    
+    Args:
+        message: str -> Message from kafka topic
+    '''
+    logger.info("STEP 2. Delete any prior database file for a fresh start.")
+    if sqlite_path.exists():
+        try:
+            sqlite_path.unlink()
+            logger.info("SUCCESS: Deleted database file.")
+        except Exception as e:
+            logger.error(f"ERROR: Failed to delete DB file: {e}")
+            sys.exit(2)
+
+
+#####################################
 # Define main function for this module
 #####################################
 
@@ -198,6 +220,7 @@ def main() -> None:
             message_str = message.value
             logger.debug(f"Received message at offset {message.offset}: {message_str}")
             process_message(message_str)
+            store_message(message_str)
     except KeyboardInterrupt:
         logger.warning("Consumer interrupted by user.")
     except Exception as e:
