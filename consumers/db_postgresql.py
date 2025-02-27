@@ -24,7 +24,7 @@ Example JSON message
 # import from standard library
 import os
 import pathlib
-import sqlite3
+import psycopg2
 
 # import from local modules
 from utils.utils_logger import logger
