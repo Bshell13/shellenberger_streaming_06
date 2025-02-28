@@ -24,7 +24,7 @@ Example Kafka message format:
 # Import packages from Python Standard Library
 import os
 import json  # handle JSON parsing
-import psycopg2 # used for data storage
+# import psycopg2 # used for data storage
 import pandas as pd
 import seaborn as sns
 
@@ -40,7 +40,7 @@ import matplotlib.pyplot as plt
 # Import functions from local modules
 from utils.utils_consumer import create_kafka_consumer
 from utils.utils_logger import logger
-from consumers.db_postgresql import init_db, insert_message
+#from consumers.db_postgresql import init_db, insert_message
 
 #####################################
 # Load Environment Variables
@@ -71,7 +71,9 @@ def get_kafka_consumer_group_id() -> str:
 # Set up data structures (empty lists)
 #####################################
 
-custom_df = pd.DataFrame(columns=['pressure_kPa', 'windspeed_km/h', 'weather'])
+# custom_df = pd.DataFrame(columns=['weather', 'pressure_kPa', 'windspeed_km/h'])
+pressure_df = pd.DataFrame(columns=['pressure_kPa', 'weather'])
+windspeed_df = pd.DataFrame(columns=['windspeed_km/h', 'weather'])
 
 #####################################
 # Set up live visuals
@@ -101,20 +103,34 @@ def update_chart():
     
     # Calculates the average windspeed and pressure for each weather type.
     # Uses the pandas agg function to find the averages of the grouped weather types.
-    agg_df = custom_df.groupby(['weather']).agg(
-        avg_pressure_kPa=('pressure_kPa','mean'),
-        avg_windspeed_km_h=('windspeed_km/h','mean')
-        ).reset_index()
+    # agg_df = custom_df.groupby(['weather']).agg(
+    #     avg_pressure_kPa=('pressure_kPa','mean'),
+    #     avg_windspeed_km_h=('windspeed_km/h','mean')
+    #     ).reset_index()
     
+    avg_pressure = pressure_df.groupby(['weather'])['pressure_kPa'].mean().reset_index()
+    avg_windspeed = windspeed_df.groupby(['weather'])['windspeed_km/h'].mean().reset_index()
+     
     # the pandas melt function change the data from wide format to a long format.
     # This makes it easier for seaborn to graph the two values.
-    tidy_df = agg_df.melt(id_vars='weather', value_name='average_value', var_name='average_type')
+    # tidy_df = agg_df.melt(id_vars='weather', value_name='average_value', var_name='average_type')
 
-    sns.barplot(data = tidy_df, x='weather', y='average_value', hue='average_type')
-    ax.set_xlabel("Type of Weather")
-    ax.set_ylabel('Values')
-    ax.set_title("Pressure and Windspeed for different Weather Types")
-    plt.xticks(rotation=75)
+    # This section makes two seperate bar charts
+    plt.figure(1)
+    plt.clf()
+    plt.bar(avg_pressure['weather'], avg_pressure['pressure_kPa'], color='green')
+    plt.xlabel('Weather Type')
+    plt.xticks(rotation=30)
+    plt.ylabel('Average Pressure (kPa)')
+    plt.title('Average Pressure per Weather Type')
+    
+    plt.figure(2)
+    plt.clf()
+    plt.bar(avg_windspeed['weather'], avg_windspeed['windspeed_km/h'], color='skyblue')
+    plt.xlabel('Weather Type')
+    plt.xticks(rotation=30)
+    plt.ylabel('Average Windspeed (km/h)')
+    plt.title('Average Windspeed per Weather Type')
 
     # Use the tight_layout() method to automatically adjust the padding
     plt.tight_layout()
@@ -155,7 +171,9 @@ def process_message(message: str) -> None:
             return
 
         # Append the pressure, wind speed and weather type
-        custom_df.loc[len(custom_df)] = [pressure, wind_speed, weather]
+        # custom_df.loc[len(custom_df)] = [pressure, wind_speed, weather]
+        pressure_df.loc[len(pressure_df)] = [pressure, weather]
+        windspeed_df.loc[len(windspeed_df)] = [wind_speed, weather]
         
         # Update chart after processing this message
         update_chart()
@@ -182,7 +200,8 @@ def main() -> None:
     logger.info("START consumer.")
 
     # Clear previous run's data
-    custom_df.drop(custom_df.index, inplace=True)
+    pressure_df.drop(pressure_df.index, inplace=True)
+    windspeed_df.drop(windspeed_df.index, inplace=True)
 
     # fetch .env content
     topic = get_kafka_topic()
