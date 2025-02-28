@@ -21,7 +21,6 @@ import json  # work with JSON data
 
 # Import external packages
 from dotenv import load_dotenv
-import shutil
 
 # Import functions from local modules
 from utils.utils_producer import (

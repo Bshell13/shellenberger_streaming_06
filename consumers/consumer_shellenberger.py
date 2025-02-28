@@ -26,7 +26,7 @@ import os
 import json  # handle JSON parsing
 # import psycopg2 # used for data storage
 import pandas as pd
-import seaborn as sns
+# import seaborn as sns
 
 # Import external packages
 from dotenv import load_dotenv
@@ -115,24 +115,33 @@ def update_chart():
     # This makes it easier for seaborn to graph the two values.
     # tidy_df = agg_df.melt(id_vars='weather', value_name='average_value', var_name='average_type')
 
-    # This section makes two seperate bar charts
+    # Pressure cart
     plt.figure(1)
     plt.clf()
     plt.bar(avg_pressure['weather'], avg_pressure['pressure_kPa'], color='green')
+    
+    # Adding values above the bars
+    for i in range(len(avg_pressure['weather'])):
+        plt.text(i, avg_pressure['pressure_kPa'][i], str(round(avg_pressure['pressure_kPa'][i],2)), ha='center', va='bottom')
+        
     plt.xlabel('Weather Type')
     plt.xticks(rotation=30)
     plt.ylabel('Average Pressure (kPa)')
     plt.title('Average Pressure per Weather Type')
+    plt.tight_layout()
     
+    # Windspeed chart
     plt.figure(2)
     plt.clf()
     plt.bar(avg_windspeed['weather'], avg_windspeed['windspeed_km/h'], color='skyblue')
+    
+    for i in range(len(avg_pressure['weather'])):
+        plt.text(i, avg_windspeed['windspeed_km/h'][i], str(round(avg_windspeed['windspeed_km/h'][i],2)), ha='center', va='bottom')
+    
     plt.xlabel('Weather Type')
     plt.xticks(rotation=30)
     plt.ylabel('Average Windspeed (km/h)')
     plt.title('Average Windspeed per Weather Type')
-
-    # Use the tight_layout() method to automatically adjust the padding
     plt.tight_layout()
 
     # Draw the chart
